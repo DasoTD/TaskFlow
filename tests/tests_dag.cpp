@@ -85,18 +85,17 @@ TEST_F(DAGTest, ParallelBranches) {
     EXPECT_EQ(execution_order[3], 4);
 }
 
-TEST_F(DAGTest, DISABLED_RecurringTasks) {
-    // TODO: Fix recurring task implementation - currently has race condition
-    // causing tasks to run more frequently than expected
+TEST_F(DAGTest, RecurringTasks) {
     std::atomic<int> counter{0};
     
     auto recurring_task = scheduler->schedule_every(100ms, [&]{
         counter++;
     });
     
-    std::this_thread::sleep_for(250ms); // Let it run ~2-3 times
+    std::this_thread::sleep_for(350ms); // Let it run ~3-4 times
     
-    // More lenient bounds for CI environments
-    EXPECT_GE(counter.load(), 1); // Should have run at least once
-    EXPECT_LE(counter.load(), 10); // But not excessively (was failing at 25)
+    // Should run approximately every 100ms, so in 350ms expect ~3-4 runs
+    // Allow some variance for CI timing but not exponential growth
+    EXPECT_GE(counter.load(), 2); // Should have run at least 2 times
+    EXPECT_LE(counter.load(), 6); // But not more than 6 times (with timing variance)
 }

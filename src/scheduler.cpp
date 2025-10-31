@@ -72,18 +72,20 @@ struct Scheduler::Impl {
                     auto& t = tasks[i];
                     t.run();
                     if (t.recurring) {
-                        ScheduledTask nxt;
-                        nxt.func = t.func;
-                        nxt.next_run = t.next_run + t.interval;
-                        nxt.interval = t.interval;
-                        nxt.recurring = t.recurring;
-                        nxt.cron_expr = t.cron_expr;
-                        nxt.dependencies = t.dependencies;
-                        add(std::move(nxt));
+                        // Reschedule the same task instead of creating a new one
+                        std::lock_guard<std::mutex> lk(mtx);
+                        t.next_run = Clock::now() + t.interval;
+                        // Create new promise/future for next execution
+                        t.completion = std::promise<std::optional<std::any>>{};
                     }
                     completed(task_id);
                 });
-                { std::lock_guard<std::mutex> lk(mtx); tasks[i].next_run = TimePoint::max(); }
+                // Only set next_run to max for non-recurring tasks
+                { std::lock_guard<std::mutex> lk(mtx); 
+                  if (!tasks[i].recurring) {
+                      tasks[i].next_run = TimePoint::max(); 
+                  }
+                }
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
