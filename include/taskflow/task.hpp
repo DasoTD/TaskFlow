@@ -25,7 +25,7 @@ template<typename T = void>
 using TaskWithResult = std::function<T()>;
 
 struct ScheduledTask {
-    std::variant<Task, TaskWithResult<void>> func;
+    Task func;
     TimePoint next_run;
     Duration interval{};
     bool recurring = false;
@@ -37,14 +37,43 @@ struct ScheduledTask {
     std::atomic<int> pending_deps{0};
 
     std::promise<std::optional<std::any>> completion;
-    std::shared_future<std::optional<std::any>> future() const { return completion.get_future(); }
+    
+    // Make it movable
+    ScheduledTask() = default;
+    ScheduledTask(const ScheduledTask&) = delete;
+    ScheduledTask& operator=(const ScheduledTask&) = delete;
+    ScheduledTask(ScheduledTask&& other) noexcept 
+        : func(std::move(other.func)), next_run(other.next_run), interval(other.interval),
+          recurring(other.recurring), canceled(other.canceled), cron_expr(std::move(other.cron_expr)),
+          dependencies(std::move(other.dependencies)), dependents(std::move(other.dependents)),
+          pending_deps(other.pending_deps.load()), completion(std::move(other.completion)) {}
+    
+    ScheduledTask& operator=(ScheduledTask&& other) noexcept {
+        if (this != &other) {
+            func = std::move(other.func);
+            next_run = other.next_run;
+            interval = other.interval;
+            recurring = other.recurring;
+            canceled = other.canceled;
+            cron_expr = std::move(other.cron_expr);
+            dependencies = std::move(other.dependencies);
+            dependents = std::move(other.dependents);
+            pending_deps = other.pending_deps.load();
+            completion = std::move(other.completion);
+        }
+        return *this;
+    }
+    
+    std::shared_future<std::optional<std::any>> future() { return completion.get_future(); }
 
     void run() {
         if (canceled) return;
         try {
-            if (auto* t = std::get_if<Task>(&func)) { (*t)(); completion.set_value(std::nullopt); }
-            else if (auto* t = std::get_if<TaskWithResult<void>>(&func)) { (*t)(); completion.set_value(std::nullopt); }
-        } catch (...) { completion.set_exception(std::current_exception()); }
+            func();
+            completion.set_value(std::nullopt);
+        } catch (...) { 
+            completion.set_exception(std::current_exception()); 
+        }
     }
 };
 
