@@ -13,12 +13,15 @@ cmake-build-*/
 *.a
 *.lib
 
-# CMake
+# CMake build artifacts (but not source .cmake files)
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 Makefile
-*.cmake
+# Exclude generated CMake files but keep source .cmake files
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/CTestTestfile.cmake
 
 # Visual Studio
 *.vcxproj.user
