@@ -33,33 +33,33 @@ cmake --build . --config Release
 ### Basic Usage
 
 ```cpp
-#include <taskflow/scheduler.hpp>
+#include <taskflow/taskflow.hpp>
 #include <iostream>
 
 int main() {
-    tf::Scheduler scheduler;
-    scheduler.start();
+    tf::Taskflow taskflow("Simple Pipeline");
+    tf::Executor executor;
 
-    // Schedule tasks with dependencies
-    auto backup = scheduler.schedule_once(
-        tf::Clock::now() + 1s,
-        []{ std::cout << "[1] backup" << std::endl; }
-    );
+    // Create tasks with dependencies
+    auto backup = taskflow.emplace([](){ 
+        std::cout << "[1] backup" << std::endl; 
+    });
 
-    auto report = scheduler.schedule_once(
-        tf::Clock::now() + 2s,
-        []{ std::cout << "[2] report" << std::endl; },
-        {backup}  // Depends on backup
-    );
+    auto report = taskflow.emplace([](){ 
+        std::cout << "[2] report" << std::endl; 
+    });
 
-    auto notify = scheduler.schedule_once(
-        tf::Clock::now() + 3s,
-        []{ std::cout << "[3] notify" << std::endl; },
-        {backup, report}  // Depends on both
-    );
+    auto notify = taskflow.emplace([](){ 
+        std::cout << "[3] notify" << std::endl; 
+    });
 
-    scheduler.wait_for(notify);
-    scheduler.stop();
+    // Define dependencies
+    backup.succeed(report);     // report runs after backup
+    report.succeed(notify);     // notify runs after report
+
+    // Execute the taskflow
+    executor.run(taskflow).wait();
+    
     return 0;
 }
 ```
